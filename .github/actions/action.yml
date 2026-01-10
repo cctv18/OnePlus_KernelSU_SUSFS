@@ -1340,6 +1340,14 @@ runs:
         
         BUILD_START=$(date +%s)
         set -o pipefail
+
+        echo "::group::🔍 [DEBUG] Full Environment Variables Dump"
+        echo "========================================================"
+        echo "Dumping all environment variables before build..."
+        echo "========================================================"
+        env | sort
+        echo "========================================================"
+        echo "::endgroup::"
         
         make -j"$(nproc --all)" O="$OUT" KCFLAGS="$KCFLAGS" KCPPFLAGS="$KCPPFLAGS" 2>&1 | tee build.log
         
