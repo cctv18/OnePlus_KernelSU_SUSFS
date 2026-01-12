@@ -1551,7 +1551,7 @@ runs:
         echo "   SHA256: $ZIP_SHA256"
         echo "::endgroup::"
 
-- name: 📦 Compress Full Output Directory (Debug)
+    - name: 📦 Compress Full Output Directory (Debug)
       shell: bash
       if: success()
       run: |
