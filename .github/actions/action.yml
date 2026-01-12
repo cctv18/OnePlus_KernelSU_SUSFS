@@ -829,9 +829,9 @@ runs:
             cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
             if [ "${{ inputs.ksu_type }}" = "KSUN" ]; then
               echo "Patching KSU_TOOLKIT Support for SusFS kernel!"
-              patch -p1 --forward < "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/ksu_toolkit.patch"
+              #patch -p1 --forward < "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/ksu_toolkit.patch"
               echo "Patching Multi-manager Support for SusFS kernel!"
-              patch -p1 --forward < "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/multi_manager.patch"
+              #patch -p1 --forward < "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/multi_manager.patch"
             else
               patch -p1 --forward < 10_enable_susfs_for_ksu.patch
             fi
