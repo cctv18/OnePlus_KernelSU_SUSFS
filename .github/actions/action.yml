@@ -1551,6 +1551,47 @@ runs:
         echo "   SHA256: $ZIP_SHA256"
         echo "::endgroup::"
 
+- name: 📦 Compress Full Output Directory (Debug)
+      shell: bash
+      if: success()
+      run: |
+        set -e
+        echo "Compressing Full Output for Debugging..."
+        
+        # 重建路径变量
+        CONFIG="${{ env.OP_MODEL }}"
+        KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
+        COMMON="$KERNEL_PATH/common"
+        
+        cd "$COMMON"
+        
+        if [ -d "out" ]; then
+          echo "Found 'out' directory. Starting compression..."
+          echo "⚠️ Warning: The output directory is very large (GBs). Using ZSTD for speed."
+          
+          # 使用 tar + zstd 多线程压缩以节省时间
+          # -T0: 使用所有CPU核心
+          # -3: 较低的压缩率以换取速度（因为文件通常很大）
+          tar -I "zstd -T0 -3" -cf full_build_output.tar.zst out/
+          
+          echo "DEBUG_ARCHIVE_PATH=$COMMON/full_build_output.tar.zst" >> "$GITHUB_ENV"
+          
+          FILE_SIZE=$(stat -c%s full_build_output.tar.zst)
+          echo "✅ Compression complete. Archive size: $(numfmt --to=iec-i --suffix=B "$FILE_SIZE")"
+        else
+          echo "Output directory 'out' not found in $COMMON !"
+        fi
+
+    - name: ⬆️ Upload Full Debug Artifact
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-full-output-${{ env.OP_MODEL }}-${{ env.OP_OS_VERSION }}
+        path: ${{ env.DEBUG_ARCHIVE_PATH }}
+        # 因为我们已经手动用 zstd 压缩过了，这里设置为 0 避免重复压缩浪费时间
+        compression-level: 0
+        retention-days: 3
+
     - name: Final Build Summary
       shell: bash
       run: |
