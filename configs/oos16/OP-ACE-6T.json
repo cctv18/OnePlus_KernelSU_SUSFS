@@ -8,12 +8,12 @@
   "os_version": "OOS16",
   "lto": "none",
   "rust_build": true,
-  "disk_cleanup": true,
+  "disk_cleanup": false,
   "hmbird": false,
-  "susfs": true,
-  "bbg": true,
-  "bbr": true,
-  "ttl": true,
-  "ip_set": true,
+  "susfs": false,
+  "bbg": false,
+  "bbr": false,
+  "ttl": false,
+  "ip_set": false,
   "uname": "OP-WILD"
 }
