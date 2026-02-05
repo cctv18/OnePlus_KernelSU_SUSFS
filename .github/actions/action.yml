@@ -711,9 +711,9 @@ runs:
         cd "$KERNEL_PLATFORM_FOLDER"
         echo "Adding KernelSU Next..."
         if [ "${{ inputs.ksu_branch_or_hash }}" = "" ]; then
-          curl --fail --location --proto '=https' -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+          curl --fail --location --proto '=https' -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s dev-susfs
         else
-          curl --fail --location --proto '=https' -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s "${{ inputs.ksu_branch_or_hash }}"
+          curl --fail --location --proto '=https' -LSs "https://raw.githubusercontent.com/pershoot/KernelSU-Next/refs/heads/dev-susfs/kernel/setup.sh" | bash -s "${{ inputs.ksu_branch_or_hash }}"
         fi
         git submodule update --init --recursive
         cd KernelSU-Next/kernel
@@ -820,13 +820,13 @@ runs:
             ;;
           "v1.5.9"|"v1.5.10"|"v1.5.11"|"v1.5.12")
             if [ "${{ inputs.ksu_type }}" = "KSUN" ]; then
-              cd "$KSUN_FOLDER"
-              patch -p1 --forward < "$SUSFS_FOLDER/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" || true
-              for file in $(find ./kernel -maxdepth 2 -name "*.rej" -printf "%f\n" | cut -d'.' -f1); do
-                echo "Patching file: $file.c with fix_$file.c.patch"
-                patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/next/susfs_fix_patches/$susfs_version/fix_$file.c.patch"
-              done
-              patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/next/susfs_fix_patches/$susfs_version/fix_kernel_compat.c.patch"
+              cd ./KernelSU-Next
+            else
+              cd ./KernelSU
+            fi
+            cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
+            if [ "${{ inputs.ksu_type }}" = "KSUN" ]; then
+              patch -p1 --forward < "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/fix_kernel_compat.c.patch"
             else
               cd "$KSU_FOLDER"
               patch -p1 --forward < "$SUSFS_FOLDER/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
@@ -834,18 +834,16 @@ runs:
             ;;
           "v2.0.0")
             if [ "${{ inputs.ksu_type }}" = "KSUN" ]; then
-              cd "$KSUN_FOLDER"
-              patch -p1 --forward < "$SUSFS_FOLDER/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" || true
-              for file in $(find ./kernel -maxdepth 2 -name "*.rej" -exec basename {} .rej \;); do
-                echo "Patching file: $file with fix_$file.patch"
-                patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/next/susfs_fix_patches/$susfs_version/fix_$file.patch"
-              done
-              echo "Patching Hook Mode!"
-              patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/next/susfs_fix_patches/$susfs_version/overwrite_hook_mode.patch"
+              cd ./KernelSU-Next
+            else
+              cd ./KernelSU
+            fi
+            cp ../../../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ./
+            if [ "${{ inputs.ksu_type }}" = "KSUN" ]; then
               echo "Patching KSU_TOOLKIT Support for SusFS kernel!"
-              patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/next/susfs_fix_patches/$susfs_version/ksu_toolkit.patch"
+              #patch -p1 --forward < "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/ksu_toolkit.patch"
               echo "Patching Multi-manager Support for SusFS kernel!"
-              patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/next/susfs_fix_patches/$susfs_version/multi_manager.patch"
+              #patch -p1 --forward < "../../../kernel_patches/next/susfs_fix_patches/$susfs_version/multi_manager.patch"
             else
               cd "$KSU_FOLDER"
               patch -p1 --forward < "$SUSFS_FOLDER/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" || true
@@ -1367,6 +1365,11 @@ runs:
         
         BUILD_START=$(date +%s)
         set -o pipefail
+
+        echo "[DEBUG] Environmental variables dump:"
+        env | sort
+        echo "[DEBUG] Current Dir: "
+        echo $(pwd)
         
         make -j"$(nproc --all)" O="$OUT" KCFLAGS="$KCFLAGS" KCPPFLAGS="$KCPPFLAGS" 2>&1 | tee build.log
         
@@ -1566,6 +1569,47 @@ runs:
         echo "   Size: $(numfmt --to=iec-i --suffix=B "$ZIP_SIZE")"
         echo "   SHA256: $ZIP_SHA256"
         echo "::endgroup::"
+
+    - name: 📦 Compress Full Output Directory (Debug)
+      shell: bash
+      if: success()
+      run: |
+        set -e
+        echo "Compressing Full Output for Debugging..."
+        
+        # 重建路径变量
+        CONFIG="${{ env.OP_MODEL }}"
+        KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
+        COMMON="$KERNEL_PATH/common"
+        
+        cd "$COMMON"
+        
+        if [ -d "out" ]; then
+          echo "Found 'out' directory. Starting compression..."
+          echo "⚠️ Warning: The output directory is very large (GBs). Using ZSTD for speed."
+          
+          # 使用 tar + zstd 多线程压缩以节省时间
+          # -T0: 使用所有CPU核心
+          # -3: 较低的压缩率以换取速度（因为文件通常很大）
+          tar -I "zstd -T0 -3" -cf full_build_output.tar.zst out/
+          
+          echo "DEBUG_ARCHIVE_PATH=$COMMON/full_build_output.tar.zst" >> "$GITHUB_ENV"
+          
+          FILE_SIZE=$(stat -c%s full_build_output.tar.zst)
+          echo "✅ Compression complete. Archive size: $(numfmt --to=iec-i --suffix=B "$FILE_SIZE")"
+        else
+          echo "Output directory 'out' not found in $COMMON !"
+        fi
+
+    - name: ⬆️ Upload Full Debug Artifact
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-full-output-${{ env.OP_MODEL }}-${{ env.OP_OS_VERSION }}
+        path: ${{ env.DEBUG_ARCHIVE_PATH }}
+        # 因为我们已经手动用 zstd 压缩过了，这里设置为 0 避免重复压缩浪费时间
+        compression-level: 0
+        retention-days: 3
 
     - name: Final Build Summary
       shell: bash
