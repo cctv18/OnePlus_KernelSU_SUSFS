@@ -1586,12 +1586,11 @@ runs:
         
         if [ -d "out" ]; then
           echo "Found 'out' directory. Starting compression..."
-          echo "⚠️ Warning: The output directory is very large (GBs). Using ZSTD for speed."
           
           # 使用 tar + zstd 多线程压缩以节省时间
           # -T0: 使用所有CPU核心
-          # -3: 较低的压缩率以换取速度（因为文件通常很大）
-          tar -I "zstd -T0 -3" -cf full_build_output.tar.zst out/
+          # -3: 较低的压缩率以换取速度
+          tar -I "zstd -T0 -3" -cf full_build_output.tar.zst out/.config out/vmlinux.symvers
           
           echo "DEBUG_ARCHIVE_PATH=$COMMON/full_build_output.tar.zst" >> "$GITHUB_ENV"
           
